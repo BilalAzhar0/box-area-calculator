@@ -1,0 +1,5 @@
+{
+    "raw-images": "../flask/received/",
+    "processed-images": "processed",
+    "last-image-processed": "empty"
+}
