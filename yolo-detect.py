@@ -7,6 +7,10 @@ import time
 config = "config_files/config.json"
 raw_folder = "../flask/received"
 processed_folder = "processed"
+image_name = str()
+nodeID = str()
+timeStamp = str()
+file_timeout = 5
 
 def format_yolov5(frame):
     row, col, _ = frame.shape
@@ -21,8 +25,19 @@ def get_oldest_file(folder_path):
         return None  
 
     files.sort()  
+    image_name = files[0]
     oldest_file = os.path.join(folder_path, files[0])
     return oldest_file
+
+def extract_nodeID(filename):
+    nodeID = filename[:6]
+    timeStamp = filename[7:]
+    return nodeID, timeStamp
+
+def log_area(timeStamp, nodeID, area_occupied):
+    line = f"{timeStamp} : {nodeID} : {str(area_occupied)}\n"
+    with open("output.txt", "a") as file:
+        file.write(line)
 
 while True:
     while True:
@@ -34,7 +49,10 @@ while True:
         
         # If no file is found, continue the loop
         print("No file found. Waiting...")
-        time.sleep(1)
+        time.sleep(file_timeout * 60)
+        file_timeout = min(file_timeout * 5, 30)
+
+    nodeID,timeStamp = extract_nodeID(image_name)
 
     image = cv2.imread(image_path)
     destination_file = os.path.join(processed_folder, os.path.basename(image_path))
@@ -114,8 +132,7 @@ while True:
         print("independant area occupied:",area)
         area_occupied = int(area_occupied + area)
         
-    print("Total area =",area_occupied)
-    print("Total area not occupied =",int(total_area - area_occupied))
-            
+    area_occupied = area_occupied / total_area
+    log_area(timeStamp,nodeID,area_occupied)            
     #cv2.imshow("output", image)
     #cv2.waitKey()
