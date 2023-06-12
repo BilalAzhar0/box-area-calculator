@@ -5,11 +5,8 @@ import os
 import time
 
 config = "config_files/config.json"
-raw_folder = "../flask/received"
+raw_folder = "../flask-server/received"
 processed_folder = "processed"
-image_name = str()
-nodeID = str()
-timeStamp = str()
 file_timeout = 5
 
 def format_yolov5(frame):
@@ -26,23 +23,23 @@ def get_oldest_file(folder_path):
 
     files.sort()  
     image_name = files[0]
-    oldest_file = os.path.join(folder_path, files[0])
-    return oldest_file
+    folder_path = os.path.normpath(folder_path)
+    oldest_file_path = os.path.join(folder_path, image_name)
+    return image_name,oldest_file_path
 
 def extract_nodeID(filename):
     nodeID = filename[:6]
-    timeStamp = filename[7:]
+    timeStamp = filename[7:26]
     return nodeID, timeStamp
 
 def log_area(timeStamp, nodeID, area_occupied):
-    line = f"{timeStamp} : {nodeID} : {str(area_occupied)}\n"
+    line = f"{str(timeStamp)} : {str(nodeID)} : {str(area_occupied)}\n"
     with open("output.txt", "a") as file:
         file.write(line)
 
 while True:
     while True:
-        image_path = get_oldest_file(raw_folder)
-        
+        image_name,image_path = get_oldest_file(raw_folder)
         if image_path is not None:
             print("Processing image found:", image_path)
             break  # Exit the while loop if a file is found
@@ -50,7 +47,7 @@ while True:
         # If no file is found, continue the loop
         print("No file found. Waiting...")
         time.sleep(file_timeout * 60)
-        file_timeout = min(file_timeout * 5, 30)
+        file_timeout = min(file_timeout + 5, 30)
 
     nodeID,timeStamp = extract_nodeID(image_name)
 
@@ -58,10 +55,11 @@ while True:
     destination_file = os.path.join(processed_folder, os.path.basename(image_path))
     os.rename(image_path, destination_file)
 
+################################# OUTPUT ARRAY PROCESSING ################################################
     input_image = format_yolov5(image)                 # Input image into net
     blob = cv2.dnn.blobFromImage(input_image , 1/255.0, (640, 640), swapRB=True)
 
-    net = cv2.dnn.readNet('config_files/best(3).onnx')
+    net = cv2.dnn.readNet('config_files/best (3).onnx')
     net.setInput(blob)
     predictions = net.forward()
 
@@ -122,6 +120,8 @@ while True:
         cv2.putText(image, class_list[class_id], (box[0], box[1] - 10), cv2.FONT_HERSHEY_SIMPLEX, .5, (0,0,0))
 
     cv2.imwrite("misc/detection.png", image)
+################################# OUTPUT ARRAY PROCESSING ################################################
+
 
     area_occupied = 0
     total_area = int(image_width * image_height)
@@ -131,8 +131,7 @@ while True:
         area = int(box[2] * box[3]) 
         print("independant area occupied:",area)
         area_occupied = int(area_occupied + area)
-        
-    area_occupied = area_occupied / total_area
-    log_area(timeStamp,nodeID,area_occupied)            
-    #cv2.imshow("output", image)
-    #cv2.waitKey()
+    if area_occupied is not None :  
+        area_occupied = round(100*(area_occupied / total_area),1)
+        log_area(timeStamp,nodeID,area_occupied)            
+
