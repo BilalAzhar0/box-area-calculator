@@ -3,12 +3,21 @@ import cv2
 import jsearch
 import os
 import time
+import paho.mqtt.client as mqtt
 
 config = "config_files/config.json"
 raw_folder = "../flask-server/received"
 processed_folder = "processed"
 file_timeout = 5
 
+
+def on_connect(client, userdata, flags, rc):
+    print("Connected with result code " + str(rc))
+    client.subscribe("Waresense/node2")
+
+def on_message(client, userdata, msg):
+    print("Received message: " + msg.payload.decode())
+    
 def format_yolov5(frame):
     row, col, _ = frame.shape
     _max = max(col, row)
@@ -32,12 +41,22 @@ def extract_nodeID(filename):
     timeStamp = filename[7:26]
     return nodeID, timeStamp
 
-def log_area(timeStamp, nodeID, area_occupied):
+def generate_log_string(timeStamp, nodeID, area_occupied):
     line = f"{str(timeStamp)} : {str(nodeID)} : {str(area_occupied)}\n"
-    with open("output.txt", "a") as file:
-        file.write(line)
+    return line
 
 while True:
+
+    broker = "broker.emqx.io"  
+    port = 1883 
+
+    client = mqtt.Client()
+    client.on_connect = on_connect
+    client.on_message = on_message
+
+    client.connect(broker, port, 60)
+    client.loop_start()
+
     while True:
         image_name,image_path = get_oldest_file(raw_folder)
         if image_path is not None:
@@ -122,6 +141,7 @@ while True:
     cv2.imwrite("misc/detection.png", image)
 ################################# OUTPUT ARRAY PROCESSING ################################################
 
+    client.publish("Waresense/node1",)
 
     area_occupied = 0
     total_area = int(image_width * image_height)
@@ -133,5 +153,9 @@ while True:
         area_occupied = int(area_occupied + area)
     if area_occupied is not None :  
         area_occupied = round(100*(area_occupied / total_area),1)
-        log_area(timeStamp,nodeID,area_occupied)            
+        log = generate_log_string(timeStamp,nodeID,area_occupied)
+        with open("output.txt", "a") as file:
+            file.write(log)            
+        
+        client.publish("Waresense/node1",log)
 
